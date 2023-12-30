@@ -3,10 +3,11 @@
  #include <avr/power.h> 
 #endif
 
-
 #define LED_PIN 6
 #define LED_COUNT 20
 #define ARR_SIZE 64
+
+#define HUE_MAX 65536L
 
 // Message flags
 // Steering
@@ -19,12 +20,18 @@
 #define GREEN 'G'
 #define BLUE 'B'
 #define BRIGHTNESS 'b'
+#define WAIT 'W' // The higher, the slower animation is playing
 
 // Function flag values
 #define FUNCTION 'F'
 
 enum LedStripFunction {
-  CLEAR = 1, FILL, RAINBOW, PULSE
+  CLEAR = 1, 
+  FILL, 
+  RAINBOW_LEFT, 
+  RAINBOW_RIGHT, 
+  PULSE, 
+  PULSE_RAINBOW
 };
 
 
@@ -85,37 +92,56 @@ public:
     strip.show();
   }
 
-  void fillColor(const RGB& rgb) {
+  void fillColor(const RGB& rgb, const byte& brightness) {
+    strip.setBrightness(brightness);
     strip.fill(strip.Color(rgb.red, rgb.green, rgb.blue));
     strip.show();
   }
 
-  void theaterChaseRainbow(const int& wait) {
-    int firstPixelHue = 0;  
-    for(int a=0; a<30; a++) {
-        strip.clear();
-        for(int c=0; c<strip.numPixels(); c++) {
-          int hue = firstPixelHue + c * 65536L / strip.numPixels();
-          uint32_t color = strip.gamma32(strip.ColorHSV(hue));
-          strip.setPixelColor(c, color); 
-        }
-        strip.show();
-        delay(wait);
-        firstPixelHue += 65536 / 90;
-    }
+  // TODO: create only one funciton?
+  void rainbow(const int& wait, const byte& brightness, bool rightDirection) {
+    static int firstPixelHue = 0;
+    displayRainbowStrip(firstPixelHue, brightness);
+    delay(wait);
+
+    if(rightDirection)
+      firstPixelHue += HUE_MAX / 90;
+    else 
+      firstPixelHue -= HUE_MAX / 90;
   }
 
   void fadeInOut(int wait, const RGB& rgb) {
     const static byte INCREMENT = 5;
-    wait = wait/INCREMENT;
+    wait = (wait/(255/INCREMENT))/2;
     clear();
-    strip.fill(strip.Color(rgb.red, rgb.green, rgb.blue));
 
     for(unsigned int i=0; i<=255; i+=INCREMENT) {
-      Serial.println(i);
-      strip.setBrightness(strip.gamma32(i));
+      strip.setBrightness(i);
+      strip.fill(strip.Color(rgb.red, rgb.green, rgb.blue));
       strip.show();
       delay(wait);
+    }
+
+    for(unsigned int i=255; i-INCREMENT > 0; i-=INCREMENT) {
+      strip.setBrightness(i);
+      strip.fill(strip.Color(rgb.red, rgb.green, rgb.blue));
+      strip.show();
+      delay(wait);
+    }
+    clear();
+  }
+
+private:
+  void displayRainbowStrip(const int& firstPixelHue, const byte& brightness) {
+    strip.setBrightness(brightness);
+    for(int a=0; a<30; a++) {
+        strip.clear();
+        for(int c=0; c<strip.numPixels(); c++) {
+          int hue = firstPixelHue + c * HUE_MAX / strip.numPixels();
+          uint32_t color = strip.gamma32(strip.ColorHSV(hue));
+          strip.setPixelColor(c, color); 
+        }
+        strip.show();
     }
   }
 };
@@ -141,46 +167,54 @@ void setup() {
 RGB pallete = { 0, 0, 0 };
 
 void testColorSwitch() {
+  int DELAY = 500;
   Serial.println("RED");
-  ledStrip->fillColor({255,0,0});
-  delay(1000);
+  ledStrip->fillColor({255,0,0}, 255);
+  delay(DELAY);
 
   Serial.println("GREEN");
-  ledStrip->fillColor({0,255,0});
-  delay(1000);
+  ledStrip->fillColor({0,255,0}, 255);
+  delay(DELAY);
 
   Serial.println("BLUE");
-  ledStrip->fillColor({0,0,255});
-  delay(1000);
+  ledStrip->fillColor({0,0,255}, 255);
+  delay(DELAY);
   
   Serial.println("WHITE");
-  ledStrip->fillColor({255,255,255});
-  delay(1000);
+  ledStrip->fillColor({255,255,255}, 255);
+  delay(DELAY);
   
   ledStrip->clear();
 }
 
 void testFadeInOut() {
+  int wait = 300;
   Serial.println("Fade in out RED");
-  ledStrip->fadeInOut(300, {255, 0, 0});
+  ledStrip->fadeInOut(wait, {255, 0, 0});
 
   Serial.println("Fade in out GREEN");
-  ledStrip->fadeInOut(300, {0, 255, 0});
+  ledStrip->fadeInOut(wait, {0, 255, 0});
 
   Serial.println("Fade in out BLUE");
-  ledStrip->fadeInOut(300, {0, 0, 255});
+  ledStrip->fadeInOut(wait, {0, 0, 255});
 }
 
-void test() {
+void ledStripTest() {
+  Serial.println("LED STRIP TEST");
   testFadeInOut();
   testColorSwitch();
 
-  Serial.println("Rainbow theater chase");
-  ledStrip->theaterChaseRainbow(50);
+  Serial.println("Rainbow left");
+  for(int i=0; i<50; i++)
+    ledStrip->rainbow(30, 255, false);
+
+  Serial.println("Rainbow right");
+  for(int i=0; i<50; i++)
+    ledStrip->rainbow(30, 255, true);
 }
 
 void loop() {
-  test();
+  ledStripTest();
   //recieving the data from HC-05 (which function will be used?)
   // recieveData();  
 
