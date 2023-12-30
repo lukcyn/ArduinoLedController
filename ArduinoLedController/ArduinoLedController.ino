@@ -9,6 +9,8 @@
 
 #define HUE_MAX 65536L
 
+#define BUFFER_SIZE 64
+
 // Message flags
 // Steering
 #define STOP '!'        
@@ -20,10 +22,10 @@
 #define GREEN 'G'
 #define BLUE 'B'
 #define BRIGHTNESS 'b'
-#define WAIT 'W' // The higher, the slower animation is playing
+#define WAIT 'w' // The higher, the slower animation is playing
 
 // Function flag values
-#define FUNCTION 'F'
+#define FUNCTION 'f'
 
 enum LedStripFunction {
   CLEAR = 1, 
@@ -61,7 +63,7 @@ struct RGB {
   }
 };
 
-
+// TODO: remove delay and loops from functions to be able to communicate with hc05 with no delay
 class LedStrip {
   Adafruit_NeoPixel strip;
   static LedStrip* ledStrip;
@@ -110,18 +112,14 @@ public:
   }
 
   void pulse(const unsigned int& wait, const RGB& rgb) {
-    clear();
     inOutBrightness(wait, strip.Color(rgb.red, rgb.green, rgb.blue));
-    clear();
   }
 
   void pulseRainbow(const unsigned int& wait) {
     static int hue = 0;
     hue += HUE_MAX/10;
     uint32_t color = strip.gamma32(strip.ColorHSV(hue));
-    clear();
     inOutBrightness(wait, color);
-    clear();
   }
 
 private:
@@ -170,24 +168,16 @@ private:
 };
 LedStrip* LedStrip::ledStrip = nullptr;
 
+struct ProgramVariables {
+  RGB rgb;
+  byte brightness;
+  unsigned int wait;
+  LedStripFunction ledFunction;
+};
 
-// uint8_t fFlag=0;
-// char dataRecieved[ARR_SIZE];
-// bool isDecoded = true;
+
 LedStrip* ledStrip = LedStrip::getInstance();
 
-void setup() {
-  // These lines are specifically to support the Adafruit Trinket 5V 16 MHz.
-  // Any other board, you can remove this part (but no harm leaving it):
-  #if defined(__AVR_ATtiny85__) && (F_CPU == 16000000)
-    clock_prescale_set(clock_div_1);
-  #endif
-
-  Serial.begin(38400);
-  ledStrip->init();
-}
-
-RGB pallete = { 0, 0, 0 };
 
 void testColorSwitch() {
   int DELAY = 500;
@@ -222,152 +212,111 @@ void testFadeInOut() {
   ledStrip->pulse(wait, {0, 0, 255});
 }
 
-void ledStripTest() {
+void runLedStripTest() {
   Serial.println("LED STRIP TEST");
-  // testFadeInOut();
-  // testColorSwitch();
+  testFadeInOut();
+  testColorSwitch();
 
-  // Serial.println("Rainbow left");
-  // for(int i=0; i<50; i++)
-  //   ledStrip->rainbow(30, 255, false);
+  Serial.println("Rainbow left");
+  for(int i=0; i<50; i++)
+    ledStrip->rainbow(30, 255, false);
 
-  // Serial.println("Rainbow right");
-  // for(int i=0; i<50; i++)
-  //   ledStrip->rainbow(30, 255, true);
+  Serial.println("Rainbow right");
+  for(int i=0; i<50; i++)
+    ledStrip->rainbow(30, 255, true);
 
   ledStrip->pulseRainbow(30);
+  Serial.println("END OF TEST");
 }
 
-void loop() {
-  ledStripTest();
-  //recieving the data from HC-05 (which function will be used?)
-  // recieveData();  
 
-
-  // //change it to while(!Serial.available()>0)
-  // if(Serial.peek()!=START){
-  //     switch(fFlag){
-        
-  //     case CLEAR:
-  //     strip.clear();
-  //     Serial.println("Cleaning");
-  //     fFlag = 0;
-  //     break;
-    
-  //     case FILL:
-  //     strip.fill(strip.Color(pallete.getGreen(), pallete.getBlue(), pallete.getRed()));   //TODO: color chooser, currently function turns strip red
-  //     strip.show();
-  //     fFlag = 0;
-  //     break; 
-  //   }
-  // }
-}
-
-// void recieveData(){
-//     char pos = 0;
-//     //TODO: Serial cleaning mechanisim in case START does not occur
-    
-//     if(Serial.peek()==START){
-//       Serial.println("START");
-//       do{
-//             if(Serial.available()>0){
-//                 dataRecieved[pos] = Serial.read();
-//                 //dataRecieved[0]=46;
-//                 Serial.println(dataRecieved[pos]);
-//                 pos++;
-//               }            
-
-//       }while(dataRecieved[pos-1]!=STOP);
-      
-//       //This step proves that data has beed recovered fully
-//       isDecoded = false;
-//     }
-//     //in case of error
-//     if(Serial.peek() != START && Serial.available()>0){
-//       flushBuffor();
-//     }
-   
-//   if(!isDecoded){
-//       decoder(dataRecieved, fFlag, pallete);
-//       isDecoded=true;
-//       for(short i=0; i<64; i++){
-//       dataRecieved[i]=0;
-
-//       //This step allows the function to be executed after succesfull decoding
-//       //dataAvailable = true;
-//       }
-//   }
-// }
-
-// //Flushing the buffor in case of incomplete data
-// void flushBuffor(){
-//   while(Serial.available()>0){
-//     Serial.read();
-//   }
-//   Serial.println("Flushing buffor...");
-// }
-
-// //Handles the values connected with flags
-// short charToInt(char arr[], short &index){
-//   short solution; 
-//   short temp[]={0,0,0};
-//   short i=0;
+char receivedData[BUFFER_SIZE];
+int dataIndex = 0;
+bool isDataReceiving = false;
+void receiveBluetoothData() {
   
-//   while(arr[index]!=END && i<=2 && arr[index]!=STOP){
-//     temp[i] = arr[index]-'0';
-//     i++;
-//     index++;
-//   }
-//   solution = temp[0]*100+temp[1]*10+temp[2];
-//   return solution; 
-// }
+  // TODO: timeout if STOP not received (lost or invalid data)
+  while (Serial.available() > 0) {
+    char receivedChar = Serial.read();
+    if (receivedChar == START) {
+      // Start flag received
+      isDataReceiving = true;
+      dataIndex = 0;
+    } else if (receivedChar == STOP && isDataReceiving) {
+      // End of the string
+      isDataReceiving = false;
+      receivedData[dataIndex] = '\0'; // Null-terminate the string
+      Serial.print("Received: ");
+      Serial.println(receivedData);
+    } else if (isDataReceiving) {
+      // Add the character to the string buffer
+      if (dataIndex < BUFFER_SIZE - 1) {
+        receivedData[dataIndex] = receivedChar;
+        dataIndex++;
+      }
+    }
+  }
+}
 
-// //Handles the flags and values in code send by bluetooth
-// void decoder(char arr[], uint8_t &fFlag, Pallete &pallete){
-//   short i=0;
-//   while(arr[i]!=STOP){
-//     switch (arr[i]){
+void parseBufferedData(ProgramVariables& variables) {
+  // TODO: implement
+}
 
-//       case START:
-//       i++;
-//       Serial.println("START DETECTED");
-//       break;
+void runLedStrip(const ProgramVariables& variables) {
+  switch(variables.ledFunction) {
+    case CLEAR:
+      ledStrip->clear();
+      break;
+    
+    case FILL:
+      ledStrip->fillColor(variables.rgb, variables.brightness);
+      break;
 
-//       case END:
-//       i++;
-//       Serial.println("END DETECTED");
-//       break;
-      
-//       case FUNCTION:
-//       i++;
-//       Serial.println("FUNCTION FLAG DETECTED");
-//       fFlag = charToInt(arr,i);
-//       break;
-      
-//       case RED:
-//       i++;
-//       Serial.println("RED FLAG DETECTED");
-//       pallete.setRed(charToInt(arr,i));
-//       break;
-      
-//       case GREEN:
-//       i++;
-//       Serial.println("GREEN FLAG DETECTED");
+    case PULSE:
+      ledStrip->pulse(variables.wait, variables.rgb);
+      break;
 
-//       pallete.setGreen(charToInt(arr,i));
-//       break;
-      
-//       case BLUE:
-//       i++;
-//       Serial.println("BLUE FLAG DETECTED");
-//       pallete.setBlue(charToInt(arr,i));
-//       break;
+    case PULSE_RAINBOW:
+      ledStrip->pulseRainbow(variables.wait);
+      break;
 
-//       case BRIGHTNESS:
-//       i++;
-//       strip.setBrightness(charToInt(arr, i));
-//       Serial.println("BRIGHTNESS FLAG DETECTED");
-//     }
-//   }
-//   Serial.println("Data stopped flowing succesfully");
-// }
+    case RAINBOW_RIGHT:
+      ledStrip->rainbow(variables.wait, variables.brightness, true);
+      break;
+
+    case RAINBOW_LEFT:
+      ledStrip->rainbow(variables.wait, variables.brightness, false);
+      break;
+  }
+}
+
+void setup() {
+  // These lines are specifically to support the Adafruit Trinket 5V 16 MHz.
+  // Any other board, you can remove this part (but no harm leaving it):
+  #if defined(__AVR_ATtiny85__) && (F_CPU == 16000000)
+    clock_prescale_set(clock_div_1);
+  #endif
+
+  Serial.begin(38400);
+  ledStrip->init();
+  runLedStripTest();
+}
+
+ProgramVariables variables = {
+  {0, 255, 0},  // Default green
+  255,          // Default brightness MAX
+  10,           // Delay 10  
+  FILL          // Fill strip with color
+};
+
+
+// TODO: log messages
+void loop() {
+  receiveBluetoothData();
+
+  // Parse data if not currently gathering data and there is data available to parse
+  if(!isDataReceiving && dataIndex > 0)
+    parseBufferedData(variables);
+
+  runLedStrip(variables);
+}
