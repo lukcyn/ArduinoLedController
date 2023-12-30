@@ -98,7 +98,6 @@ public:
     strip.show();
   }
 
-  // TODO: create only one funciton?
   void rainbow(const int& wait, const byte& brightness, bool rightDirection) {
     static int firstPixelHue = 0;
     displayRainbowStrip(firstPixelHue, brightness);
@@ -110,24 +109,18 @@ public:
       firstPixelHue -= HUE_MAX / 90;
   }
 
-  void fadeInOut(int wait, const RGB& rgb) {
-    const static byte INCREMENT = 5;
-    wait = (wait/(255/INCREMENT))/2;
+  void pulse(const unsigned int& wait, const RGB& rgb) {
     clear();
+    inOutBrightness(wait, strip.Color(rgb.red, rgb.green, rgb.blue));
+    clear();
+  }
 
-    for(unsigned int i=0; i<=255; i+=INCREMENT) {
-      strip.setBrightness(i);
-      strip.fill(strip.Color(rgb.red, rgb.green, rgb.blue));
-      strip.show();
-      delay(wait);
-    }
-
-    for(unsigned int i=255; i-INCREMENT > 0; i-=INCREMENT) {
-      strip.setBrightness(i);
-      strip.fill(strip.Color(rgb.red, rgb.green, rgb.blue));
-      strip.show();
-      delay(wait);
-    }
+  void pulseRainbow(const unsigned int& wait) {
+    static int hue = 0;
+    hue += HUE_MAX/10;
+    uint32_t color = strip.gamma32(strip.ColorHSV(hue));
+    clear();
+    inOutBrightness(wait, color);
     clear();
   }
 
@@ -142,6 +135,36 @@ private:
           strip.setPixelColor(c, color); 
         }
         strip.show();
+    }
+  }
+
+  /**
+  * Starts with brightness==0, goes to 255, then goes back to 0
+  */
+  void inOutBrightness(int unsigned wait, const uint32_t& color) {
+    const static byte INCREMENT = 5;
+
+    // Prevent flashing from bad input data
+    if(wait > 10)
+      wait = wait/10;
+    else
+      wait = 1;
+
+    Serial.println(wait);
+    clear();
+
+    for(unsigned int i=0; i<=255; i+=INCREMENT) {
+      strip.setBrightness(i);
+      strip.fill(color);
+      strip.show();
+      delay(wait);
+    }
+
+    for(unsigned int i=255; i-INCREMENT > 0; i-=INCREMENT) {
+      strip.setBrightness(i);
+      strip.fill(color);
+      strip.show();
+      delay(wait);
     }
   }
 };
@@ -190,27 +213,29 @@ void testColorSwitch() {
 void testFadeInOut() {
   int wait = 300;
   Serial.println("Fade in out RED");
-  ledStrip->fadeInOut(wait, {255, 0, 0});
+  ledStrip->pulse(wait, {255, 0, 0});
 
   Serial.println("Fade in out GREEN");
-  ledStrip->fadeInOut(wait, {0, 255, 0});
+  ledStrip->pulse(wait, {0, 255, 0});
 
   Serial.println("Fade in out BLUE");
-  ledStrip->fadeInOut(wait, {0, 0, 255});
+  ledStrip->pulse(wait, {0, 0, 255});
 }
 
 void ledStripTest() {
   Serial.println("LED STRIP TEST");
-  testFadeInOut();
-  testColorSwitch();
+  // testFadeInOut();
+  // testColorSwitch();
 
-  Serial.println("Rainbow left");
-  for(int i=0; i<50; i++)
-    ledStrip->rainbow(30, 255, false);
+  // Serial.println("Rainbow left");
+  // for(int i=0; i<50; i++)
+  //   ledStrip->rainbow(30, 255, false);
 
-  Serial.println("Rainbow right");
-  for(int i=0; i<50; i++)
-    ledStrip->rainbow(30, 255, true);
+  // Serial.println("Rainbow right");
+  // for(int i=0; i<50; i++)
+  //   ledStrip->rainbow(30, 255, true);
+
+  ledStrip->pulseRainbow(30);
 }
 
 void loop() {
@@ -236,7 +261,6 @@ void loop() {
   //     break; 
   //   }
   // }
-
 }
 
 // void recieveData(){
