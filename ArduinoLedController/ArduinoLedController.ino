@@ -63,7 +63,6 @@ struct RGB {
   }
 };
 
-// TODO: remove delay and loops from functions to be able to communicate with hc05 with no delay
 class LedStrip {
   Adafruit_NeoPixel strip;
   static LedStrip* ledStrip;
@@ -100,10 +99,9 @@ public:
     strip.show();
   }
 
-  void rainbow(const int& wait, const byte& brightness, bool rightDirection) {
+  void rainbow(const byte& brightness, bool rightDirection) {
     static int firstPixelHue = 0;
     displayRainbowStrip(firstPixelHue, brightness);
-    delay(wait);
 
     if(rightDirection)
       firstPixelHue += HUE_MAX / 90;
@@ -111,16 +109,16 @@ public:
       firstPixelHue -= HUE_MAX / 90;
   }
 
-  void pulse(const unsigned int& wait, const RGB& rgb) {
-    inOutBrightness(wait, strip.Color(rgb.red, rgb.green, rgb.blue));
+  void pulse(const RGB& rgb) {
+    inOutBrightness(strip.Color(rgb.red, rgb.green, rgb.blue));
   }
 
-  void pulseRainbow(const unsigned int& wait) {
+  void pulseRainbow() {
     static int hue = 0;
     uint32_t color = strip.gamma32(strip.ColorHSV(hue));
     
     // change color when the animation starts over
-    if(inOutBrightness(wait, color))
+    if(inOutBrightness(color))
       hue += HUE_MAX/10;
   }
 
@@ -142,21 +140,14 @@ private:
   * Starts with brightness==0, goes to 255, then goes back to 0
   * @returns true if the animation completes
   */
-  bool inOutBrightness(int unsigned wait, const uint32_t& color) {
+  bool inOutBrightness(const uint32_t& color) {
     const static byte INCREMENT = 5;
     static bool ascending = true;
     static byte currentBrightness = 0;
 
-    // Prevent flashing from bad input data
-    if(wait > 10)
-      wait = wait/10;
-    else
-      wait = 1;
-
     strip.setBrightness(currentBrightness);
     strip.fill(color);
     strip.show();
-    delay(wait);
 
     return adjustBrightness(currentBrightness, ascending, INCREMENT);
   }
@@ -194,6 +185,13 @@ struct ProgramVariables {
   LedStripFunction ledFunction;
 };
 
+ProgramVariables variables = {
+  RGB(0, 255, 0),   // Default green
+  255,              // Default brightness MAX
+  10,               // Delay 10  
+  FILL              // Fill strip with color
+};
+
 LedStrip* ledStrip = LedStrip::getInstance();
 
 void testColorSwitch() {
@@ -221,29 +219,41 @@ void testPulse() {
   int wait = 300;
 
   Serial.println("Fade in out RED");
-  for(int i=0; i<102; i++)
-    ledStrip->pulse(wait, {255, 0, 0});
+  for(int i=0; i<102; i++) {
+    delay(wait);
+    ledStrip->pulse({255, 0, 0});
+  }
 
   Serial.println("Fade in out GREEN");
-  for(int i=0; i<102; i++)
-    ledStrip->pulse(wait, {0, 255, 0});
+  for(int i=0; i<102; i++) {
+    delay(wait);
+    ledStrip->pulse({0, 255, 0});
+  }
 
   Serial.println("Fade in out BLUE");
-  for(int i=0; i<102; i++)
-    ledStrip->pulse(wait, {0, 0, 255});
+  for(int i=0; i<102; i++) {
+    delay(wait);
+    ledStrip->pulse({0, 0, 255});
+  }
   
-  for(int i=0; i<1000; i++)
-    ledStrip->pulseRainbow(30);
+  for(int i=0; i<1000; i++) {
+    delay(wait);
+    ledStrip->pulseRainbow();
+  }
 }
 
 void testRainbow() {
   Serial.println("Rainbow left");
-  for(int i=0; i<50; i++)
-    ledStrip->rainbow(30, 255, false);
+  for(int i=0; i<50; i++) {
+    delay(30);
+    ledStrip->rainbow(255, false);
+  }
 
   Serial.println("Rainbow right");
-  for(int i=0; i<50; i++)
-    ledStrip->rainbow(30, 255, true);
+  for(int i=0; i<50; i++) {
+    delay(30);
+    ledStrip->rainbow(255, true);
+  }
 }
 
 void runLedStripTest() {
@@ -283,11 +293,38 @@ void receiveBluetoothData() {
   }
 }
 
-void parseBufferedData(ProgramVariables& variables) {
+void parseBufferedData() {
   // TODO: implement
 }
 
-void runLedStrip(const ProgramVariables& variables) {
+void executeDelayed(const unsigned int delay, void (*fun)()) {
+  static unsigned long lastExecution = millis();
+  unsigned long now = millis();
+
+  if(now - delay > lastExecution) {
+    lastExecution = now;
+    fun();
+  }
+}
+
+// function wrappers
+void pulseWrapped() {
+  ledStrip->pulse(variables.rgb);
+}
+
+void pulseRainbowWrapped() {
+  ledStrip->pulseRainbow();
+}
+
+void rainbowRightWrapped() {
+  ledStrip->rainbow(variables.brightness, true);
+}
+
+void rainbowLeftWrapped() {
+  ledStrip->rainbow(variables.brightness, false);
+}
+
+void runLedStrip() {
   switch(variables.ledFunction) {
     case CLEAR:
       ledStrip->clear();
@@ -298,19 +335,19 @@ void runLedStrip(const ProgramVariables& variables) {
       break;
 
     case PULSE:
-      ledStrip->pulse(variables.wait, variables.rgb);
+      executeDelayed(variables.wait, pulseWrapped);
       break;
 
     case PULSE_RAINBOW:
-      ledStrip->pulseRainbow(variables.wait);
+      executeDelayed(variables.wait, pulseRainbowWrapped);
       break;
 
     case RAINBOW_RIGHT:
-      ledStrip->rainbow(variables.wait, variables.brightness, true);
+      executeDelayed(variables.wait, rainbowRightWrapped);
       break;
 
     case RAINBOW_LEFT:
-      ledStrip->rainbow(variables.wait, variables.brightness, false);
+      executeDelayed(variables.wait, rainbowLeftWrapped);
       break;
   }
 }
@@ -327,13 +364,6 @@ void setup() {
   // runLedStripTest();
 }
 
-ProgramVariables variables = {
-  RGB(0, 255, 0),   // Default green
-  255,              // Default brightness MAX
-  10,               // Delay 10  
-  FILL              // Fill strip with color
-};
-
 
 // TODO: log messages
 void loop() {
@@ -341,7 +371,7 @@ void loop() {
 
   // Parse data if not currently gathering data and there is data available to parse
   if(!isDataReceiving && dataIndex > 0)
-    parseBufferedData(variables);
+    parseBufferedData();
 
-  runLedStrip(variables);
+  runLedStrip();
 }
