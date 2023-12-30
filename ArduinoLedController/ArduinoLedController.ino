@@ -27,6 +27,17 @@
 // Function flag values
 #define FUNCTION 'f'
 
+class LedStrip;
+struct ProgramVariables;
+
+LedStrip* ledStrip;
+ProgramVariables* variables;
+
+char receivedData[BUFFER_SIZE];
+int dataIndex = 0;
+bool isDataReceiving = false;
+
+
 enum LedStripFunction {
   CLEAR = 1, 
   FILL, 
@@ -62,6 +73,7 @@ struct RGB {
     black();
   }
 };
+
 
 class LedStrip {
   Adafruit_NeoPixel strip;
@@ -185,15 +197,6 @@ struct ProgramVariables {
   LedStripFunction ledFunction;
 };
 
-ProgramVariables variables = {
-  RGB(0, 255, 0),   // Default green
-  255,              // Default brightness MAX
-  10,               // Delay 10  
-  FILL              // Fill strip with color
-};
-
-LedStrip* ledStrip = LedStrip::getInstance();
-
 void testColorSwitch() {
   int DELAY = 500;
   Serial.println("RED");
@@ -264,12 +267,7 @@ void runLedStripTest() {
   Serial.println("END OF TEST");
 }
 
-
-char receivedData[BUFFER_SIZE];
-int dataIndex = 0;
-bool isDataReceiving = false;
 void receiveBluetoothData() {
-  
   // TODO: timeout if STOP not received (lost or invalid data)
   while (Serial.available() > 0) {
     char receivedChar = Serial.read();
@@ -293,9 +291,11 @@ void receiveBluetoothData() {
   }
 }
 
+
 void parseBufferedData() {
   // TODO: implement
 }
+
 
 void executeDelayed(const unsigned int delay, void (*fun)()) {
   static unsigned long lastExecution = millis();
@@ -309,7 +309,7 @@ void executeDelayed(const unsigned int delay, void (*fun)()) {
 
 // function wrappers
 void pulseWrapped() {
-  ledStrip->pulse(variables.rgb);
+  ledStrip->pulse(variables->rgb);
 }
 
 void pulseRainbowWrapped() {
@@ -317,37 +317,37 @@ void pulseRainbowWrapped() {
 }
 
 void rainbowRightWrapped() {
-  ledStrip->rainbow(variables.brightness, true);
+  ledStrip->rainbow(variables->brightness, true);
 }
 
 void rainbowLeftWrapped() {
-  ledStrip->rainbow(variables.brightness, false);
+  ledStrip->rainbow(variables->brightness, false);
 }
 
 void runLedStrip() {
-  switch(variables.ledFunction) {
+  switch(variables->ledFunction) {
     case CLEAR:
       ledStrip->clear();
       break;
     
     case FILL:
-      ledStrip->fillColor(variables.rgb, variables.brightness);
+      ledStrip->fillColor(variables->rgb, variables->brightness);
       break;
 
     case PULSE:
-      executeDelayed(variables.wait, pulseWrapped);
+      executeDelayed(variables->wait, pulseWrapped);
       break;
 
     case PULSE_RAINBOW:
-      executeDelayed(variables.wait, pulseRainbowWrapped);
+      executeDelayed(variables->wait, pulseRainbowWrapped);
       break;
 
     case RAINBOW_RIGHT:
-      executeDelayed(variables.wait, rainbowRightWrapped);
+      executeDelayed(variables->wait, rainbowRightWrapped);
       break;
 
     case RAINBOW_LEFT:
-      executeDelayed(variables.wait, rainbowLeftWrapped);
+      executeDelayed(variables->wait, rainbowLeftWrapped);
       break;
   }
 }
@@ -360,10 +360,18 @@ void setup() {
   #endif
 
   Serial.begin(38400);
+
+  ledStrip = LedStrip::getInstance();
   ledStrip->init();
   // runLedStripTest();
-}
 
+  *variables = {
+    RGB(0, 255, 0),   // Default green
+    255,              // Default brightness MAX
+    10,               // Delay 10  
+    FILL              // Fill strip with color
+  };
+}
 
 // TODO: log messages
 void loop() {
