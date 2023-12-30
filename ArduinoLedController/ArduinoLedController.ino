@@ -96,7 +96,7 @@ public:
 
   void fillColor(const RGB& rgb, const byte& brightness) {
     strip.setBrightness(brightness);
-    strip.fill(strip.Color(rgb.red, rgb.green, rgb.blue));
+    strip.fill(strip.Color(rgb.green, rgb.red, rgb.blue));
     strip.show();
   }
 
@@ -117,30 +117,35 @@ public:
 
   void pulseRainbow(const unsigned int& wait) {
     static int hue = 0;
-    hue += HUE_MAX/10;
     uint32_t color = strip.gamma32(strip.ColorHSV(hue));
-    inOutBrightness(wait, color);
+    
+    // change color when the animation starts over
+    if(inOutBrightness(wait, color))
+      hue += HUE_MAX/10;
   }
 
 private:
   void displayRainbowStrip(const int& firstPixelHue, const byte& brightness) {
     strip.setBrightness(brightness);
-    for(int a=0; a<30; a++) {
-        strip.clear();
-        for(int c=0; c<strip.numPixels(); c++) {
-          int hue = firstPixelHue + c * HUE_MAX / strip.numPixels();
-          uint32_t color = strip.gamma32(strip.ColorHSV(hue));
-          strip.setPixelColor(c, color); 
-        }
-        strip.show();
+    strip.clear();
+
+    for(int c=0; c<strip.numPixels(); c++) {
+      int hue = firstPixelHue + c * HUE_MAX / strip.numPixels();
+      uint32_t color = strip.gamma32(strip.ColorHSV(hue));
+      strip.setPixelColor(c, color); 
     }
+
+    strip.show();
   }
 
   /**
   * Starts with brightness==0, goes to 255, then goes back to 0
+  * @returns true if the animation completes
   */
-  void inOutBrightness(int unsigned wait, const uint32_t& color) {
+  bool inOutBrightness(int unsigned wait, const uint32_t& color) {
     const static byte INCREMENT = 5;
+    static bool ascending = true;
+    static byte currentBrightness = 0;
 
     // Prevent flashing from bad input data
     if(wait > 10)
@@ -148,22 +153,36 @@ private:
     else
       wait = 1;
 
-    Serial.println(wait);
-    clear();
+    strip.setBrightness(currentBrightness);
+    strip.fill(color);
+    strip.show();
+    delay(wait);
 
-    for(unsigned int i=0; i<=255; i+=INCREMENT) {
-      strip.setBrightness(i);
-      strip.fill(color);
-      strip.show();
-      delay(wait);
-    }
+    return adjustBrightness(currentBrightness, ascending, INCREMENT);
+  }
 
-    for(unsigned int i=255; i-INCREMENT > 0; i-=INCREMENT) {
-      strip.setBrightness(i);
-      strip.fill(color);
-      strip.show();
-      delay(wait);
+  /**
+  * @returns true if the animation completes
+  */
+  bool adjustBrightness(byte& currentBrightness, bool& ascending, const byte& increment) {
+    if(ascending) {
+      if(currentBrightness + increment > 255) {
+        ascending = false;
+        currentBrightness = 255;
+      }
+      else
+        currentBrightness += increment;
     }
+    else {
+      if(currentBrightness < increment) {
+        ascending = true;
+        currentBrightness = 0;
+        return true;
+      }
+      else
+        currentBrightness -= increment;
+    }
+    return false;
   }
 };
 LedStrip* LedStrip::ledStrip = nullptr;
@@ -175,9 +194,7 @@ struct ProgramVariables {
   LedStripFunction ledFunction;
 };
 
-
 LedStrip* ledStrip = LedStrip::getInstance();
-
 
 void testColorSwitch() {
   int DELAY = 500;
@@ -200,23 +217,26 @@ void testColorSwitch() {
   ledStrip->clear();
 }
 
-void testFadeInOut() {
+void testPulse() {
   int wait = 300;
+
   Serial.println("Fade in out RED");
-  ledStrip->pulse(wait, {255, 0, 0});
+  for(int i=0; i<102; i++)
+    ledStrip->pulse(wait, {255, 0, 0});
 
   Serial.println("Fade in out GREEN");
-  ledStrip->pulse(wait, {0, 255, 0});
+  for(int i=0; i<102; i++)
+    ledStrip->pulse(wait, {0, 255, 0});
 
   Serial.println("Fade in out BLUE");
-  ledStrip->pulse(wait, {0, 0, 255});
+  for(int i=0; i<102; i++)
+    ledStrip->pulse(wait, {0, 0, 255});
+  
+  for(int i=0; i<1000; i++)
+    ledStrip->pulseRainbow(30);
 }
 
-void runLedStripTest() {
-  Serial.println("LED STRIP TEST");
-  testFadeInOut();
-  testColorSwitch();
-
+void testRainbow() {
   Serial.println("Rainbow left");
   for(int i=0; i<50; i++)
     ledStrip->rainbow(30, 255, false);
@@ -224,8 +244,13 @@ void runLedStripTest() {
   Serial.println("Rainbow right");
   for(int i=0; i<50; i++)
     ledStrip->rainbow(30, 255, true);
+}
 
-  ledStrip->pulseRainbow(30);
+void runLedStripTest() {
+  Serial.println("LED STRIP TEST");
+  testPulse();
+  // testColorSwitch();
+  testRainbow();
   Serial.println("END OF TEST");
 }
 
@@ -299,14 +324,14 @@ void setup() {
 
   Serial.begin(38400);
   ledStrip->init();
-  runLedStripTest();
+  // runLedStripTest();
 }
 
 ProgramVariables variables = {
-  {0, 255, 0},  // Default green
-  255,          // Default brightness MAX
-  10,           // Delay 10  
-  FILL          // Fill strip with color
+  RGB(0, 255, 0),   // Default green
+  255,              // Default brightness MAX
+  10,               // Delay 10  
+  FILL              // Fill strip with color
 };
 
 
