@@ -291,9 +291,56 @@ void receiveBluetoothData() {
   }
 }
 
+/**
+* Checks if an array is structured like 'char''num'num'num''.''char''num'num'num'...'
+* @returns true if the elemnts in array are correct
+*/
+bool validateCommand(char* arr, const unsigned int& size) {
+  for(int i=0; i<size-1; i++) {
+    if(i%5 == 0 && isdigit(arr[i])) // letter check
+      return false;
+    else if(i%5 > 0 && i%5 < 4 && !isdigit(arr[i])) // 3 digits in a row
+      return false;
+    else if(i%5 == 4 && arr[i] != '.') // dot between commands
+      return false;
+  }
+  return arr[size-1] == '\0';
+}
 
-void parseBufferedData() {
-  // TODO: implement
+
+unsigned int parseInt(char* arr, const unsigned int& begin, const unsigned int& end) {
+  unsigned int result = 0;
+
+  for (unsigned int i = begin; i < end; ++i) {
+    if (isdigit(arr[i])) {
+      result = result * 10 + (arr[i] - '0');
+    } else {
+      Serial.println("Error parsing command. Command invalid even though was validated");
+      break;
+    }
+  }
+  return result;
+}
+
+void printArray(char* arr, const unsigned int& size) {
+  for (unsigned int i = 0; i < size; ++i) {
+    Serial.print(arr[i]);
+    if (i < size - 1) {
+      Serial.print(" ");
+    }
+  }
+  Serial.println();
+}
+
+void parseBufferedData(char* arr, const unsigned int& size) {
+  if(!validateCommand(arr, size)) {
+    Serial.print("INVALID DATA ");
+    printArray(arr, size);
+    return;
+  }
+
+
+  // TODO: implement parsing
 }
 
 
@@ -379,7 +426,7 @@ void loop() {
 
   // Parse data if not currently gathering data and there is data available to parse
   if(!isDataReceiving && dataIndex > 0)
-    parseBufferedData();
+    parseBufferedData(receivedData, BUFFER_SIZE);
 
   runLedStrip();
 }
