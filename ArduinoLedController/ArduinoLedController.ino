@@ -28,10 +28,8 @@
 #define FUNCTION 'f'
 
 class LedStrip;
-struct ProgramVariables;
 
 LedStrip* ledStrip;
-ProgramVariables* variables;
 
 char receivedData[BUFFER_SIZE];
 int dataIndex = 0;
@@ -111,11 +109,11 @@ public:
     strip.show();
   }
 
-  void rainbow(const byte& brightness, bool rightDirection) {
+  void rainbow(const byte& brightness, bool leftDirection) {
     static int firstPixelHue = 0;
     displayRainbowStrip(firstPixelHue, brightness);
 
-    if(rightDirection)
+    if(leftDirection)
       firstPixelHue += HUE_MAX / 90;
     else 
       firstPixelHue -= HUE_MAX / 90;
@@ -197,6 +195,13 @@ struct ProgramVariables {
   LedStripFunction ledFunction;
 };
 
+ProgramVariables variables = {
+  RGB(0, 255, 0), 
+  255, 
+  50, 
+  RAINBOW_LEFT
+};
+
 void testColorSwitch() {
   int DELAY = 500;
   Serial.println("RED");
@@ -219,7 +224,7 @@ void testColorSwitch() {
 }
 
 void testPulse() {
-  int wait = 300;
+  int wait = 20;
 
   Serial.println("Fade in out RED");
   for(int i=0; i<102; i++) {
@@ -262,7 +267,7 @@ void testRainbow() {
 void runLedStripTest() {
   Serial.println("LED STRIP TEST");
   testPulse();
-  // testColorSwitch();
+  testColorSwitch();
   testRainbow();
   Serial.println("END OF TEST");
 }
@@ -287,6 +292,10 @@ void receiveBluetoothData() {
         receivedData[dataIndex] = receivedChar;
         dataIndex++;
       }
+    } else {
+      // No START at the begining, flushing data
+      while(Serial.available() > 0)
+        Serial.flush();
     }
   }
 }
@@ -296,6 +305,12 @@ void receiveBluetoothData() {
 * @returns true if the elemnts in array are correct
 */
 bool validateCommand(char* arr, const unsigned int& size) {
+  if(size <= 1)
+    return false;
+
+  if(size%5 != 0)
+    return false;
+
   for(int i=0; i<size-1; i++) {
     if(i%5 == 0 && isdigit(arr[i])) // letter check
       return false;
@@ -343,60 +358,76 @@ void parseBufferedData(char* arr, const unsigned int& size) {
   // TODO: implement parsing
 }
 
-
-void executeDelayed(const unsigned int delay, void (*fun)()) {
+void runLedStrip() {
   static unsigned long lastExecution = millis();
   unsigned long now = millis();
 
-  if(now - delay > lastExecution) {
-    lastExecution = now;
-    fun();
-  }
-}
-
-// function wrappers
-void pulseWrapped() {
-  ledStrip->pulse(variables->rgb);
-}
-
-void pulseRainbowWrapped() {
-  ledStrip->pulseRainbow();
-}
-
-void rainbowRightWrapped() {
-  ledStrip->rainbow(variables->brightness, true);
-}
-
-void rainbowLeftWrapped() {
-  ledStrip->rainbow(variables->brightness, false);
-}
-
-void runLedStrip() {
-  switch(variables->ledFunction) {
+  switch(variables.ledFunction) {
     case CLEAR:
       ledStrip->clear();
       break;
     
     case FILL:
-      ledStrip->fillColor(variables->rgb, variables->brightness);
+      ledStrip->fillColor(variables.rgb, variables.brightness);
       break;
 
     case PULSE:
-      executeDelayed(variables->wait, pulseWrapped);
+      if(lastExecution + variables.wait < now) {
+        lastExecution = now;
+        ledStrip->pulse(variables.rgb);
+      }
       break;
 
     case PULSE_RAINBOW:
-      executeDelayed(variables->wait, pulseRainbowWrapped);
+      if(lastExecution + variables.wait < now) {
+        lastExecution = now;
+        ledStrip->pulseRainbow();
+      }
       break;
 
     case RAINBOW_RIGHT:
-      executeDelayed(variables->wait, rainbowRightWrapped);
+      Serial.println("RAINBOW");
+      if(lastExecution + variables.wait < now) {
+        lastExecution = now;
+        ledStrip->rainbow(variables.brightness, false);
+      }
       break;
 
     case RAINBOW_LEFT:
-      executeDelayed(variables->wait, rainbowLeftWrapped);
+      if(lastExecution + variables.wait < now) {
+        lastExecution = now;
+        ledStrip->rainbow(variables.brightness, true);
+      }
       break;
   }
+}
+
+bool testValidation(const bool& assertValid, char* data, const unsigned int& size) {
+  if(validateCommand(data, size) != assertValid) {
+    Serial.print("TEST ERROR for array: ");
+    printArray(data, size);
+    return false;
+  }
+  return true;
+}
+
+void parsingDataTest() {
+  char data[10] = {'F', '0', '0', '0', '.', 'F', '0', '0', '0', '\0'};
+  testValidation(true, data, 10);
+
+  char data2[9] = {'F', '0', '0', '0', '.', 'F', '0', '0', '\0'};
+  testValidation(false, data2, 9);
+
+  char data3[10] = {'0', '0', '0', '0', '.', 'F', '0', '0', '0', '\0'};
+  testValidation(false, data3, 10);
+
+  char data4[9] = {'F', '0', '0', '0', '.', 'F', '0', '0', '0'};
+  testValidation(false, data4, 9);
+
+  char data5[10] = {'F', '0', '0', '0', '.', 'F', '0', '0', 'A', '\0'};
+  testValidation(false, data5, 10);
+
+  Serial.println("End of validation test");
 }
 
 void setup() {
@@ -406,18 +437,14 @@ void setup() {
     clock_prescale_set(clock_div_1);
   #endif
 
-  Serial.begin(38400);
+  Serial.begin(9600);
 
   ledStrip = LedStrip::getInstance();
   ledStrip->init();
+  parsingDataTest();
   // runLedStripTest();
 
-  *variables = {
-    RGB(0, 255, 0),   // Default green
-    255,              // Default brightness MAX
-    10,               // Delay 10  
-    FILL              // Fill strip with color
-  };
+  Serial.flush();
 }
 
 // TODO: log messages
@@ -426,7 +453,7 @@ void loop() {
 
   // Parse data if not currently gathering data and there is data available to parse
   if(!isDataReceiving && dataIndex > 0)
-    parseBufferedData(receivedData, BUFFER_SIZE);
+    parseBufferedData(receivedData, dataIndex + 1);
 
   runLedStrip();
 }
