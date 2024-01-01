@@ -1,6 +1,15 @@
 #include <Adafruit_NeoPixel.h>
 #ifdef __AVR__
- #include <avr/power.h> 
+  #include <avr/power.h>
+#endif
+
+#define DEBUG
+#ifdef DEBUG
+  #define DEBUG_PRINTLN(message) Serial.println(message)
+  #define DEBUG_PRINT(message) Serial.print(message)
+#else
+  #define DEBUG_PRINTLN(message) do {} while (0)
+  #define DEBUG_PRINT(message) do {} while (0)
 #endif
 
 #define LED_PIN 6
@@ -13,8 +22,8 @@
 
 // Message flags
 // Steering
-#define STOP '!'        
-#define END '.'         
+#define STOP '!'
+#define END '.'
 #define START '?'
 
 // Variables
@@ -22,7 +31,7 @@
 #define GREEN 'G'
 #define BLUE 'B'
 #define BRIGHTNESS 'b'
-#define WAIT 'w' // The higher, the slower animation is playing
+#define WAIT 'w'  // The higher, the slower animation is playing
 
 // Function flag values
 #define FUNCTION 'f'
@@ -37,11 +46,11 @@ bool isDataReceiving = false;
 
 
 enum LedStripFunction {
-  CLEAR = 1, 
-  FILL, 
-  RAINBOW_LEFT, 
-  RAINBOW_RIGHT, 
-  PULSE, 
+  CLEAR = 1,
+  FILL,
+  RAINBOW_LEFT,
+  RAINBOW_RIGHT,
+  PULSE,
   PULSE_RAINBOW
 };
 
@@ -51,22 +60,22 @@ struct RGB {
   byte green = 0;
   byte blue = 0;
 
-  void setColor(const byte& r, const byte& g, const byte& b){
+  void setColor(const byte& r, const byte& g, const byte& b) {
     red = r;
     green = g;
     blue = b;
   }
 
-  void black(){
+  void black() {
     red = 0;
     green = 0;
     blue = 0;
   }
-  
-  RGB(unsigned char r, unsigned char g, unsigned char b){
+
+  RGB(unsigned char r, unsigned char g, unsigned char b) {
     setColor(r, g, b);
   }
-  
+
   RGB() {
     black();
   }
@@ -82,12 +91,12 @@ class LedStrip {
   }
 
 public:
-  LedStrip(LedStrip &other) = delete;
+  LedStrip(LedStrip& other) = delete;
   void operator=(const LedStrip&) = delete;
 
   static LedStrip* getInstance() {
-    if(ledStrip == nullptr){
-        ledStrip = new LedStrip();
+    if (ledStrip == nullptr) {
+      ledStrip = new LedStrip();
     }
     return ledStrip;
   }
@@ -113,9 +122,9 @@ public:
     static int firstPixelHue = 0;
     displayRainbowStrip(firstPixelHue, brightness);
 
-    if(leftDirection)
+    if (leftDirection)
       firstPixelHue += HUE_MAX / 90;
-    else 
+    else
       firstPixelHue -= HUE_MAX / 90;
   }
 
@@ -126,10 +135,10 @@ public:
   void pulseRainbow() {
     static int hue = 0;
     uint32_t color = strip.gamma32(strip.ColorHSV(hue));
-    
+
     // change color when the animation starts over
-    if(inOutBrightness(color))
-      hue += HUE_MAX/10;
+    if (inOutBrightness(color))
+      hue += HUE_MAX / 10;
   }
 
 private:
@@ -137,10 +146,10 @@ private:
     strip.setBrightness(brightness);
     strip.clear();
 
-    for(int c=0; c<strip.numPixels(); c++) {
+    for (int c = 0; c < strip.numPixels(); c++) {
       int hue = firstPixelHue + c * HUE_MAX / strip.numPixels();
       uint32_t color = strip.gamma32(strip.ColorHSV(hue));
-      strip.setPixelColor(c, color); 
+      strip.setPixelColor(c, color);
     }
 
     strip.show();
@@ -166,21 +175,18 @@ private:
   * @returns true if the animation completes
   */
   bool adjustBrightness(byte& currentBrightness, bool& ascending, const byte& increment) {
-    if(ascending) {
-      if(currentBrightness + increment > 255) {
+    if (ascending) {
+      if (currentBrightness + increment > 255) {
         ascending = false;
         currentBrightness = 255;
-      }
-      else
+      } else
         currentBrightness += increment;
-    }
-    else {
-      if(currentBrightness < increment) {
+    } else {
+      if (currentBrightness < increment) {
         ascending = true;
         currentBrightness = 0;
         return true;
-      }
-      else
+      } else
         currentBrightness -= increment;
     }
     return false;
@@ -196,80 +202,80 @@ struct ProgramVariables {
 };
 
 ProgramVariables variables = {
-  RGB(0, 255, 0), 
-  255, 
-  50, 
+  RGB(0, 255, 0),
+  255,
+  50,
   RAINBOW_LEFT
 };
 
 void testColorSwitch() {
   int DELAY = 500;
-  Serial.println("RED");
-  ledStrip->fillColor({255,0,0}, 255);
+  DEBUG_PRINTLN("RED");
+  ledStrip->fillColor({ 255, 0, 0 }, 255);
   delay(DELAY);
 
-  Serial.println("GREEN");
-  ledStrip->fillColor({0,255,0}, 255);
+  DEBUG_PRINTLN("GREEN");
+  ledStrip->fillColor({ 0, 255, 0 }, 255);
   delay(DELAY);
 
-  Serial.println("BLUE");
-  ledStrip->fillColor({0,0,255}, 255);
+  DEBUG_PRINTLN("BLUE");
+  ledStrip->fillColor({ 0, 0, 255 }, 255);
   delay(DELAY);
-  
-  Serial.println("WHITE");
-  ledStrip->fillColor({255,255,255}, 255);
+
+  DEBUG_PRINTLN("WHITE");
+  ledStrip->fillColor({ 255, 255, 255 }, 255);
   delay(DELAY);
-  
+
   ledStrip->clear();
 }
 
 void testPulse() {
   int wait = 20;
 
-  Serial.println("Fade in out RED");
-  for(int i=0; i<102; i++) {
+  DEBUG_PRINTLN("Fade in out RED");
+  for (int i = 0; i < 102; i++) {
     delay(wait);
-    ledStrip->pulse({255, 0, 0});
+    ledStrip->pulse({ 255, 0, 0 });
   }
 
-  Serial.println("Fade in out GREEN");
-  for(int i=0; i<102; i++) {
+  DEBUG_PRINTLN("Fade in out GREEN");
+  for (int i = 0; i < 102; i++) {
     delay(wait);
-    ledStrip->pulse({0, 255, 0});
+    ledStrip->pulse({ 0, 255, 0 });
   }
 
-  Serial.println("Fade in out BLUE");
-  for(int i=0; i<102; i++) {
+  DEBUG_PRINTLN("Fade in out BLUE");
+  for (int i = 0; i < 102; i++) {
     delay(wait);
-    ledStrip->pulse({0, 0, 255});
+    ledStrip->pulse({ 0, 0, 255 });
   }
-  
-  for(int i=0; i<1000; i++) {
+
+  for (int i = 0; i < 1000; i++) {
     delay(wait);
     ledStrip->pulseRainbow();
   }
 }
 
 void testRainbow() {
-  Serial.println("Rainbow left");
-  for(int i=0; i<50; i++) {
+  DEBUG_PRINTLN("Rainbow left");
+  for (int i = 0; i < 50; i++) {
     delay(30);
     ledStrip->rainbow(255, false);
   }
 
-  Serial.println("Rainbow right");
-  for(int i=0; i<50; i++) {
+  DEBUG_PRINTLN("Rainbow right");
+  for (int i = 0; i < 50; i++) {
     delay(30);
     ledStrip->rainbow(255, true);
   }
 }
 
 void runLedStripTest() {
-  Serial.println("LED STRIP TEST");
+  DEBUG_PRINTLN("LED STRIP TEST");
   testPulse();
   testColorSwitch();
   testRainbow();
-  Serial.println("END OF TEST");
+  DEBUG_PRINTLN("END OF TEST");
 }
 
 void receiveBluetoothData() {
@@ -283,9 +289,9 @@ void receiveBluetoothData() {
     } else if (receivedChar == STOP && isDataReceiving) {
       // End of the string
       isDataReceiving = false;
-      receivedData[dataIndex] = '\0'; // Null-terminate the string
-      Serial.print("Received: ");
-      Serial.println(receivedData);
+      receivedData[dataIndex] = '\0';  // Null-terminate the string
+      DEBUG_PRINT("Received: ");
+      DEBUG_PRINTLN(receivedData);
     } else if (isDataReceiving) {
       // Add the character to the string buffer
       if (dataIndex < BUFFER_SIZE - 1) {
@@ -294,7 +300,7 @@ void receiveBluetoothData() {
       }
     } else {
       // No START at the begining, flushing data
-      while(Serial.available() > 0)
+      while (Serial.available() > 0)
         Serial.flush();
     }
   }
@@ -305,21 +311,21 @@ void receiveBluetoothData() {
 * @returns true if the elemnts in array are correct
 */
 bool validateCommand(char* arr, const unsigned int& size) {
-  if(size <= 1)
+  if (size <= 1)
     return false;
 
-  if(size%5 != 0)
+  if (size % 5 != 0)
     return false;
 
-  for(int i=0; i<size-1; i++) {
-    if(i%5 == 0 && isdigit(arr[i])) // letter check
+  for (int i = 0; i < size - 1; i++) {
+    if (i % 5 == 0 && isdigit(arr[i]))  // letter check
       return false;
-    else if(i%5 > 0 && i%5 < 4 && !isdigit(arr[i])) // 3 digits in a row
+    else if (i % 5 > 0 && i % 5 < 4 && !isdigit(arr[i]))  // 3 digits in a row
       return false;
-    else if(i%5 == 4 && arr[i] != '.') // dot between commands
+    else if (i % 5 == 4 && arr[i] != '.')  // dot between commands
       return false;
   }
-  return arr[size-1] == '\0';
+  return arr[size - 1] == '\0';
 }
 
 
@@ -330,7 +336,7 @@ unsigned int parseInt(char* arr, const unsigned int& begin, const unsigned int& 
     if (isdigit(arr[i])) {
       result = result * 10 + (arr[i] - '0');
     } else {
-      Serial.println("Error parsing command. Command invalid even though was validated");
+      DEBUG_PRINTLN("Error parsing command. Command invalid even though was validated");
       break;
     }
   }
@@ -339,62 +345,152 @@ unsigned int parseInt(char* arr, const unsigned int& begin, const unsigned int& 
 
 void printArray(char* arr, const unsigned int& size) {
   for (unsigned int i = 0; i < size; ++i) {
-    Serial.print(arr[i]);
+    DEBUG_PRINT(arr[i]);
     if (i < size - 1) {
-      Serial.print(" ");
+      DEBUG_PRINT(" ");
     }
   }
-  Serial.println();
+  DEBUG_PRINTLN();
 }
 
 void parseBufferedData(char* arr, const unsigned int& size) {
-  if(!validateCommand(arr, size)) {
-    Serial.print("INVALID DATA ");
+  if (!validateCommand(arr, size)) {
+    DEBUG_PRINT("INVALID DATA ");
     printArray(arr, size);
     return;
   }
 
+  for(int i=0; i<size; i+=5) {
+    char commandType = arr[i];
+    unsigned int value = parseInt(arr, i+1, i+4);
 
-  // TODO: implement parsing
+    if(!parseSingleCommand(commandType, value)) {
+      DEBUG_PRINT("Error while parsing command ");
+      printArray(arr, size);
+      return;
+    }
+  }
+
+  // Print updated variables for debugging
+  DEBUG_PRINT("Updated Variables: RGB(");
+  DEBUG_PRINT(variables.rgb.red);
+  DEBUG_PRINT(", ");
+  DEBUG_PRINT(variables.rgb.green);
+  DEBUG_PRINT(", ");
+  DEBUG_PRINT(variables.rgb.blue);
+  DEBUG_PRINT("), Brightness: ");
+  DEBUG_PRINT(variables.brightness);
+  DEBUG_PRINT(", Wait: ");
+  DEBUG_PRINT(variables.wait);
+  DEBUG_PRINT(", Function: ");
+  DEBUG_PRINTLN(variables.ledFunction);
 }
+
+
+unsigned int clamp(const unsigned int& val, unsigned int begin, unsigned int end) {
+  if(begin > end) {
+    unsigned int temp = begin;
+    begin = end;
+    end = temp;
+  }
+  
+  if(val < begin)
+    return begin;
+  
+  if(val > end)
+    return end;
+  
+  return val;
+}
+
+bool parseSingleCommand(const char& commandType, const unsigned int& value) {
+  switch (commandType) {
+    case RED:
+      variables.rgb.red = clamp(value, 0, 255);
+      break;
+    case GREEN:
+      variables.rgb.green = clamp(value, 0, 255);
+      break;
+    case BLUE:
+      variables.rgb.blue = clamp(value, 0, 255);
+      break;
+    case BRIGHTNESS:
+      variables.brightness = clamp(value, 0, 255);
+      break;
+    case WAIT:
+      variables.wait = clamp(value, 1, value);
+      break;
+    case FUNCTION:
+      // Update LedStripFunction based on the received function number
+      switch (value) {
+        case 1:
+          variables.ledFunction = CLEAR;
+          break;
+        case 2:
+          variables.ledFunction = FILL;
+          break;
+        case 3:
+          variables.ledFunction = RAINBOW_LEFT;
+          break;
+        case 4:
+          variables.ledFunction = RAINBOW_RIGHT;
+          break;
+        case 5:
+          variables.ledFunction = PULSE;
+          break;
+        case 6:
+          variables.ledFunction = PULSE_RAINBOW;
+          break;
+        default:
+          DEBUG_PRINTLN("Invalid function number");
+          return false;
+      }
+      break;
+    default:
+      DEBUG_PRINTLN("Invalid command type");
+      return false;
+  }
+  return true;
+}
+
 
 void runLedStrip() {
   static unsigned long lastExecution = millis();
   unsigned long now = millis();
 
-  switch(variables.ledFunction) {
+  switch (variables.ledFunction) {
     case CLEAR:
       ledStrip->clear();
       break;
-    
+
     case FILL:
       ledStrip->fillColor(variables.rgb, variables.brightness);
       break;
 
     case PULSE:
-      if(lastExecution + variables.wait < now) {
+      if (lastExecution + variables.wait < now) {
         lastExecution = now;
         ledStrip->pulse(variables.rgb);
       }
       break;
 
     case PULSE_RAINBOW:
-      if(lastExecution + variables.wait < now) {
+      if (lastExecution + variables.wait < now) {
         lastExecution = now;
         ledStrip->pulseRainbow();
       }
       break;
 
     case RAINBOW_RIGHT:
-      Serial.println("RAINBOW");
-      if(lastExecution + variables.wait < now) {
+      DEBUG_PRINTLN("RAINBOW");
+      if (lastExecution + variables.wait < now) {
         lastExecution = now;
         ledStrip->rainbow(variables.brightness, false);
       }
       break;
 
     case RAINBOW_LEFT:
-      if(lastExecution + variables.wait < now) {
+      if (lastExecution + variables.wait < now) {
         lastExecution = now;
         ledStrip->rainbow(variables.brightness, true);
       }
@@ -403,45 +499,45 @@ void runLedStrip() {
 }
 
 bool testValidation(const bool& assertValid, char* data, const unsigned int& size) {
-  if(validateCommand(data, size) != assertValid) {
-    Serial.print("TEST ERROR for array: ");
+  if (validateCommand(data, size) != assertValid) {
+    DEBUG_PRINT("TEST ERROR for array: ");
     printArray(data, size);
     return false;
   }
   return true;
 }
 
-void parsingDataTest() {
-  char data[10] = {'F', '0', '0', '0', '.', 'F', '0', '0', '0', '\0'};
+void testParsingData() {
+  char data[10] = { 'F', '0', '0', '0', '.', 'F', '0', '0', '0', '\0' };
   testValidation(true, data, 10);
 
-  char data2[9] = {'F', '0', '0', '0', '.', 'F', '0', '0', '\0'};
+  char data2[9] = { 'F', '0', '0', '0', '.', 'F', '0', '0', '\0' };
   testValidation(false, data2, 9);
 
-  char data3[10] = {'0', '0', '0', '0', '.', 'F', '0', '0', '0', '\0'};
+  char data3[10] = { '0', '0', '0', '0', '.', 'F', '0', '0', '0', '\0' };
   testValidation(false, data3, 10);
 
-  char data4[9] = {'F', '0', '0', '0', '.', 'F', '0', '0', '0'};
+  char data4[9] = { 'F', '0', '0', '0', '.', 'F', '0', '0', '0' };
   testValidation(false, data4, 9);
 
-  char data5[10] = {'F', '0', '0', '0', '.', 'F', '0', '0', 'A', '\0'};
+  char data5[10] = { 'F', '0', '0', '0', '.', 'F', '0', '0', 'A', '\0' };
   testValidation(false, data5, 10);
 
-  Serial.println("End of validation test");
-}
+  DEBUG_PRINTLN("End of validation test");
+} 
 
 void setup() {
-  // These lines are specifically to support the Adafruit Trinket 5V 16 MHz.
-  // Any other board, you can remove this part (but no harm leaving it):
-  #if defined(__AVR_ATtiny85__) && (F_CPU == 16000000)
-    clock_prescale_set(clock_div_1);
-  #endif
+// These lines are specifically to support the Adafruit Trinket 5V 16 MHz.
+// Any other board, you can remove this part (but no harm leaving it):
+#if defined(__AVR_ATtiny85__) && (F_CPU == 16000000)
+  clock_prescale_set(clock_div_1);
+#endif
 
   Serial.begin(9600);
 
   ledStrip = LedStrip::getInstance();
   ledStrip->init();
-  parsingDataTest();
+  testParsingData();
   // runLedStripTest();
 
   Serial.flush();
@@ -452,7 +548,7 @@ void loop() {
   receiveBluetoothData();
 
   // Parse data if not currently gathering data and there is data available to parse
-  if(!isDataReceiving && dataIndex > 0)
+  if (!isDataReceiving && dataIndex > 0)
     parseBufferedData(receivedData, dataIndex + 1);
 
   runLedStrip();
