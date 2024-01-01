@@ -129,7 +129,7 @@ public:
   }
 
   void pulse(const RGB& rgb) {
-    inOutBrightness(strip.Color(rgb.red, rgb.green, rgb.blue));
+    inOutBrightness(strip.Color(rgb.green, rgb.red, rgb.blue));
   }
 
   void pulseRainbow() {
@@ -282,6 +282,8 @@ void receiveBluetoothData() {
   // TODO: timeout if STOP not received (lost or invalid data)
   while (Serial.available() > 0) {
     char receivedChar = Serial.read();
+    DEBUG_PRINT("Received data: ");
+    DEBUG_PRINTLN(receivedChar);
     if (receivedChar == START) {
       // Start flag received
       isDataReceiving = true;
@@ -300,8 +302,9 @@ void receiveBluetoothData() {
       }
     } else {
       // No START at the begining, flushing data
+      DEBUG_PRINTLN("Flushing serial...");
       while (Serial.available() > 0)
-        Serial.flush();
+        Serial.read();
     }
   }
 }
@@ -364,11 +367,16 @@ void parseBufferedData(char* arr, const unsigned int& size) {
     char commandType = arr[i];
     unsigned int value = parseInt(arr, i+1, i+4);
 
+    DEBUG_PRINT("Parsing command: ");
+    DEBUG_PRINT(commandType);
+    DEBUG_PRINT("; with value: ");
+    DEBUG_PRINTLN(value);
+
     if(!parseSingleCommand(commandType, value)) {
       DEBUG_PRINT("Error while parsing command ");
       printArray(arr, size);
-      return;
     }
+    dataIndex = 0;
   }
 
   // Print updated variables for debugging
@@ -447,7 +455,8 @@ bool parseSingleCommand(const char& commandType, const unsigned int& value) {
       }
       break;
     default:
-      DEBUG_PRINTLN("Invalid command type");
+      DEBUG_PRINT("Invalid command type: ");
+      DEBUG_PRINTLN(commandType);
       return false;
   }
   return true;
