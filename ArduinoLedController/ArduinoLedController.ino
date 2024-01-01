@@ -8,8 +8,8 @@
   #define DEBUG_PRINTLN(message) Serial.println(message)
   #define DEBUG_PRINT(message) Serial.print(message)
 #else
-  #define DEBUG_PRINTLN(message) do {} while (0)
-  #define DEBUG_PRINT(message) do {} while (0)
+  #define DEBUG_PRINTLN(message) ;
+  #define DEBUG_PRINT(message) ;
 #endif
 
 #define LED_PIN 6
@@ -19,6 +19,7 @@
 #define HUE_MAX 65536L
 
 #define BUFFER_SIZE 64
+#define TRANSFER_TIMEOUT 400
 
 // Message flags
 // Steering
@@ -278,9 +279,12 @@ void runLedStripTest() {
   DEBUG_PRINTLN("END OF TEST");
 }
 
+
 void receiveBluetoothData() {
-  // TODO: timeout if STOP not received (lost or invalid data)
+  unsigned static long lastCharReceivedTimestamp = millis();
+
   while (Serial.available() > 0) {
+    lastCharReceivedTimestamp = millis();
     char receivedChar = Serial.read();
     DEBUG_PRINT("Received data: ");
     DEBUG_PRINTLN(receivedChar);
@@ -306,6 +310,12 @@ void receiveBluetoothData() {
       while (Serial.available() > 0)
         Serial.read();
     }
+  }
+
+  if(isDataReceiving && (millis() - TRANSFER_TIMEOUT > lastCharReceivedTimestamp)) {
+    isDataReceiving = false;
+    dataIndex = 0;
+    DEBUG_PRINT("Data receiving timeout");
   }
 }
 
@@ -359,6 +369,7 @@ void printArray(char* arr, const unsigned int& size) {
 void parseBufferedData(char* arr, const unsigned int& size) {
   if (!validateCommand(arr, size)) {
     DEBUG_PRINT("INVALID DATA ");
+    dataIndex = 0;
     printArray(arr, size);
     return;
   }
@@ -546,7 +557,7 @@ void setup() {
 
   ledStrip = LedStrip::getInstance();
   ledStrip->init();
-  testParsingData();
+  // testParsingData();
   // runLedStripTest();
 
   Serial.flush();
