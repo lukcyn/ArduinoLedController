@@ -115,7 +115,7 @@ public:
 
   void fillColor(const RGB& rgb, const byte& brightness) {
     strip.setBrightness(brightness);
-    strip.fill(strip.Color(rgb.green, rgb.red, rgb.blue));
+    strip.fill(strip.Color(rgb.green, rgb.blue, rgb.red));
     strip.show();
   }
 
@@ -130,7 +130,7 @@ public:
   }
 
   void pulse(const RGB& rgb) {
-    inOutBrightness(strip.Color(rgb.green, rgb.red, rgb.blue));
+    inOutBrightness(strip.Color(rgb.green, rgb.blue, rgb.red));
   }
 
   void pulseRainbow() {
@@ -502,7 +502,6 @@ void runLedStrip() {
       break;
 
     case RAINBOW_RIGHT:
-      DEBUG_PRINTLN("RAINBOW");
       if (lastExecution + variables.wait < now) {
         lastExecution = now;
         ledStrip->rainbow(variables.brightness, false);
